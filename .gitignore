@@ -1,0 +1,19 @@
+# Virtual environment for Python
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+__pycache__/
+*.pyc
+
+# VS Code settings
+.vscode/
+.cline/
+.env
+
+# Streamlit helpers
+.streamlit/secrets.toml

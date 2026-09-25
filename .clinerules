@@ -1,0 +1,13 @@
+# Role & Project Overview
+You are working on a Python Streamlit weather dashboard.
+
+# Coding Standards & Guidelines
+1. **Framework:** Always use Streamlit for UI (`import streamlit as st`).
+2. **Architecture:** Keep API fetching logic in a separate module/function from UI rendering.
+3. **Data Handling:** Use `pandas.DataFrame` to combine and normalize forecast data from different weather providers.
+4. **Error Handling:** Always wrap HTTP requests in `try-except` blocks. If an API call fails, show a user-friendly `st.warning()` instead of crashing the app.
+5. **Caching:** Wrap API fetching functions with `@st.cache_data(ttl=3600)` to avoid hitting rate limits on APIs.
+
+# Terminal Usage Rules
+- Always use `pip install` with `requirements.txt`.
+- When running Streamlit for testing, do not lock the terminal indefinitely; inform the user how to run `streamlit run app.py`.
