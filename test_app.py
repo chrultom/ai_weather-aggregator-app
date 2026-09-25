@@ -1,6 +1,6 @@
 """
 Unit and integration test suite for Multi-Model Weather Forecast Aggregator.
-Tests Temperature, Rain, Cloudiness, Geocoding, and yr.no (metno_seamless) integration.
+Tests Temperature, Rain, Cloudiness, Geocoding, and MET Norway (metno_seamless) integration.
 """
 
 import unittest
@@ -35,8 +35,8 @@ class TestForecastService(unittest.TestCase):
         self.assertIsNone(results)
         self.assertIsNotNone(err)
 
-    def test_yr_no_provider_live(self):
-        """Verifies that the yr.no provider (metno_seamless) works for the full 14 days."""
+    def test_metno_provider_live(self):
+        """Verifies that the MET Norway provider (metno_seamless) works for the full 14 days."""
         models = ["metno_seamless"]
         data, err = fetch_open_meteo(53.4289, 14.5530, models=models, forecast_days=14)
         self.assertIsNone(err)
@@ -49,13 +49,13 @@ class TestForecastService(unittest.TestCase):
         self.assertIn("precipitation_sum", daily)
         self.assertIn("cloudcover_mean", daily)
 
-        # Check that yr.no has non-null data
+        # Check that MET Norway has non-null data
         self.assertIsNotNone(daily["temperature_2m_max"][0])
         self.assertIsNotNone(daily["precipitation_sum"][0])
         self.assertIsNotNone(daily["cloudcover_mean"][0])
 
     def test_multi_model_with_rain_and_clouds(self):
-        """Verifies multi-model query with Best Match, yr.no, ECMWF, and GFS."""
+        """Verifies multi-model query with Best Match, MET Norway, ECMWF, and GFS."""
         models = ["best_match", "metno_seamless", "ecmwf_ifs025", "gfs_seamless"]
         data, err = fetch_open_meteo(53.4289, 14.5530, models=models, forecast_days=14)
         self.assertIsNone(err)
@@ -97,7 +97,7 @@ class TestForecastService(unittest.TestCase):
                 "cloudcover_mean_metno_seamless": [35.0, 90.0],
             }
         }
-        df_max, df_min, df_rain, df_cloud, df_summary = process_forecast_data(
+        df_max, df_min, df_rain, df_cloud, df_weather, df_summary = process_forecast_data(
             open_meteo_raw=mock_om,
             selected_models=["best_match", "metno_seamless"],
             include_7timer=False,
@@ -113,11 +113,34 @@ class TestForecastService(unittest.TestCase):
         self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Mean Temp"], 14.0)
         self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Avg Rain (mm)"], 0.1)
         self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Avg Cloud (%)"], 30.0)
+        self.assertEqual(len(df_weather.columns), 2)
 
         # Day 2: Rain Avg = (5.0 + 7.0) / 2 = 6.0 mm, Max Model Rain = 7.0
         self.assertAlmostEqual(df_summary.loc["2026-09-26", "Daily Avg Rain (mm)"], 6.0)
         self.assertEqual(df_summary.loc["2026-09-26", "Max Model Rain (mm)"], 7.0)
         self.assertIn("Rain", df_summary.loc["2026-09-26", "Sky Condition"])
+
+    def test_table_components(self):
+        from table_view import format_table_date, build_ensemble_table_df, build_comparison_matrix
+        formatted = format_table_date("2026-09-25")
+        self.assertEqual(formatted, "Friday 25 Sep")
+
+        mock_summary = pd.DataFrame([{
+            "Date": "2026-09-25",
+            "Daily Avg Max": 20.0,
+            "Daily Avg Min": 10.0,
+            "Daily Mean Temp": 15.0,
+            "Daily Avg Rain (mm)": 0.5,
+            "Daily Avg Cloud (%)": 50.0,
+            "Model Spread": 2.0,
+            "Sources Available": 3,
+            "Sky Condition": "\u26c5 Partly Cloudy",
+        }]).set_index("Date")
+
+        ensemble_df = build_ensemble_table_df(mock_summary, "\u00b0C")
+        self.assertEqual(len(ensemble_df), 1)
+        self.assertIn("Friday 25 Sep", ensemble_df.index)
+        self.assertEqual(ensemble_df.loc["Friday 25 Sep", "Weather Condition"], "\u26c5 Partly Cloudy")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """
 Multi-Model Long-Term Weather Forecast Aggregator (7\u201314 Days)
 Forecasting Temperature, Rain (Precipitation), and Cloudiness.
-Integrates Open-Meteo (Best Match, MET Norway / yr.no, ECMWF, GFS, ICON) & 7Timer!
+Integrates Open-Meteo (Best Match, MET Norway, ECMWF, GFS, ICON) & 7Timer!
 """
 
 import datetime
@@ -22,6 +22,7 @@ from ui_components import (
     plot_temp_comparison,
     plot_spread,
 )
+from table_view import render_table_subpage
 
 # ==============================================================================
 # 1. Page Configuration & Styling
@@ -64,6 +65,17 @@ st.markdown(
 with st.sidebar:
     st.header("\u2699\ufe0f Forecast Settings")
 
+    app_view = st.radio(
+        "\U0001f5fa\ufe0f View Mode:",
+        options=[
+            "\U0001f4ca Visual Dashboard (Charts & KPIs)",
+            "\U0001f4cb Table View",
+        ],
+        index=0,
+    )
+
+    st.markdown("---")
+
     city_input = st.text_input(
         "City Name:",
         value="Szczecin",
@@ -97,7 +109,7 @@ with st.sidebar:
 
     checked_open_meteo = []
     for m_id, meta in AVAILABLE_MODELS.items():
-        # Default checked models: best_match, metno_seamless (yr.no), ecmwf_ifs025, gfs_seamless
+        # Default checked models: best_match, metno_seamless, ecmwf_ifs025, gfs_seamless
         is_default = m_id in ["best_match", "metno_seamless", "ecmwf_ifs025", "gfs_seamless"]
         if st.checkbox(f"{meta['label']} ({meta['horizon']})", value=is_default, key=f"m_{m_id}"):
             checked_open_meteo.append(m_id)
@@ -170,8 +182,8 @@ with c2:
     st.metric("\U0001f310 Coordinates & Elevation", f"{lat:.4f}\u00b0, {lon:.4f}\u00b0", f"Elevation: {elev} m" if elev != "N/A" else None)
 with c3:
     total_sources = len(checked_open_meteo) + (1 if use_7timer else 0)
-    yr_badge = "yr.no active" if "metno_seamless" in checked_open_meteo else "yr.no off"
-    st.metric("\U0001f4e1 Active Models", f"{total_sources} Sources", f"{days_horizon}-Day Horizon \u2022 {yr_badge}")
+    met_badge = "MET Norway active" if "metno_seamless" in checked_open_meteo else "MET Norway off"
+    st.metric("\U0001f4e1 Active Models", f"{total_sources} Sources", f"{days_horizon}-Day Horizon \u2022 {met_badge}")
 
 st.markdown("---")
 
@@ -186,16 +198,16 @@ with st.spinner("Fetching multi-variable forecast data across weather models..."
         t7_data, t7_err = fetch_7timer(lat, lon)
 
 if om_err:
-    st.error(f"\u26a0\ufe0f Open-Meteo Notice: {om_err}")
+    st.warning(f"\u26a0\ufe0f Open-Meteo Notice: {om_err}")
 if t7_err and use_7timer:
     st.warning(f"\u2139\ufe0f 7Timer! Notice: {t7_err} (Continuing with available models)")
 
 if not om_data and not t7_data:
-    st.error("\u274c Unable to retrieve data from any weather source. Please check connection.")
+    st.warning("\u274c Unable to retrieve data from any weather source. Please check connection.")
     st.stop()
 
 # --- Step C: Data Processing & Aggregation ---
-df_max, df_min, df_rain, df_cloud, df_summary = process_forecast_data(
+df_max, df_min, df_rain, df_cloud, df_weather, df_summary = process_forecast_data(
     open_meteo_raw=om_data,
     selected_models=checked_open_meteo,
     include_7timer=use_7timer,
@@ -205,6 +217,26 @@ df_max, df_min, df_rain, df_cloud, df_summary = process_forecast_data(
 
 if df_summary.empty:
     st.error("Could not construct forecast dataframe.")
+    st.stop()
+
+# --- Subpage Routing: Table View ---
+if app_view == "\U0001f4cb Table View":
+    render_table_subpage(
+        df_max=df_max,
+        df_min=df_min,
+        df_rain=df_rain,
+        df_cloud=df_cloud,
+        df_weather=df_weather,
+        df_summary=df_summary,
+        temp_unit=unit_selection,
+        city_name=city_clean_name,
+        horizon_days=days_horizon,
+    )
+    st.markdown("---")
+    st.markdown(
+        "<center><small style='color: #6B7280;'>Weather Forecast Aggregator \u2022 Open-Meteo & 7Timer! Keyless APIs \u2022 Built with Streamlit</small></center>",
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 # --- Step D: Comprehensive Summary KPIs ---

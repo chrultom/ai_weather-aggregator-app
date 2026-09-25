@@ -8,6 +8,14 @@ You are working on a Python Streamlit weather dashboard.
 4. **Error Handling:** Always wrap HTTP requests in `try-except` blocks. If an API call fails, show a user-friendly `st.warning()` instead of crashing the app.
 5. **Caching:** Wrap API fetching functions with `@st.cache_data(ttl=3600)` to avoid hitting rate limits on APIs.
 
+## Tool Constraints
+- NEVER write temporary Python scripts or execute `python -c` in the terminal to create or edit project files.
+- ALWAYS use native file workspace editing tools directly to modify code.
+- Use terminal execution ONLY for package installation (`pip`), git commands, or code validation.
+
+## Code Quality & Linting
+- Run `ruff check .` and `ruff format .` via terminal to validate and auto-format code before committing changes.
+
 # Terminal Usage Rules
 - Always use `pip install` with `requirements.txt`.
 - When running Streamlit for testing, do not lock the terminal indefinitely; inform the user how to run `streamlit run app.py`.

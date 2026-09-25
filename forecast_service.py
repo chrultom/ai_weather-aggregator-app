@@ -1,6 +1,6 @@
 """
 Forecast Service: Geocoding, multi-model weather fetching, and ensemble calculations.
-Supported sources: Open-Meteo (Best Match, MET Norway / yr.no, ECMWF, GFS, ICON) and 7Timer!
+Supported sources: Open-Meteo (Best Match, MET Norway, ECMWF, GFS, ICON) and 7Timer!
 Variables: Temperature (Max, Min, Mean), Rain / Precipitation Sum (mm), Cloud Cover (%).
 """
 
@@ -44,6 +44,48 @@ AVAILABLE_MODELS = {
         "color": "#D97706",
     },
 }
+WMO_WEATHER_MAP = {
+    0: ("\u2600\ufe0f", "Clear sky"),
+    1: ("\U0001f324\ufe0f", "Mainly clear"),
+    2: ("\u26c5", "Partly cloudy"),
+    3: ("\u2601\ufe0f", "Overcast"),
+    45: ("\U0001f32b\ufe0f", "Fog"),
+    48: ("\U0001f32b\ufe0f", "Depositing rime fog"),
+    51: ("\U0001f326\ufe0f", "Light drizzle"),
+    53: ("\U0001f326\ufe0f", "Moderate drizzle"),
+    55: ("\U0001f327\ufe0f", "Dense drizzle"),
+    56: ("\U0001f328\ufe0f", "Freezing drizzle"),
+    57: ("\U0001f328\ufe0f", "Dense freezing drizzle"),
+    61: ("\U0001f327\ufe0f", "Slight rain"),
+    63: ("\U0001f327\ufe0f", "Moderate rain"),
+    65: ("\U0001f327\ufe0f", "Heavy rain"),
+    66: ("\U0001f328\ufe0f", "Light freezing rain"),
+    67: ("\U0001f328\ufe0f", "Heavy freezing rain"),
+    71: ("\U0001f328\ufe0f", "Slight snow"),
+    73: ("\U0001f328\ufe0f", "Moderate snow"),
+    75: ("\U0001f328\ufe0f", "Heavy snow"),
+    77: ("\u2744\ufe0f", "Snow grains"),
+    80: ("\U0001f326\ufe0f", "Rain showers"),
+    81: ("\U0001f327\ufe0f", "Heavy showers"),
+    82: ("\U0001f327\ufe0f", "Violent showers"),
+    85: ("\U0001f328\ufe0f", "Slight snow showers"),
+    86: ("\U0001f328\ufe0f", "Heavy snow showers"),
+    95: ("\u26c8\ufe0f", "Thunderstorm"),
+    96: ("\u26c8\ufe0f", "Thunderstorm with hail"),
+    99: ("\u26c8\ufe0f", "Heavy thunderstorm"),
+}
+
+
+def get_wmo_weather(code: Optional[Any]) -> Tuple[str, str]:
+    """Resolves WMO weather code into (emoji_symbol, text_description)."""
+    if code is None or (isinstance(code, float) and np.isnan(code)):
+        return ("\u26c5", "Partly cloudy")
+    try:
+        int_code = int(code)
+        return WMO_WEATHER_MAP.get(int_code, ("\u26c5", "Cloudy"))
+    except (ValueError, TypeError):
+        return ("\u26c5", "Cloudy")
+
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -108,7 +150,7 @@ def geocode_city(city_query: str) -> Tuple[Optional[List[Dict[str, Any]]], Optio
     return None, f"Could not find location coordinates for '{city}'. Please verify spelling."
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_open_meteo(
     lat: float,
     lon: float,
@@ -127,6 +169,7 @@ def fetch_open_meteo(
         "latitude": round(lat, 5),
         "longitude": round(lon, 5),
         "daily": [
+            "weather_code",
             "temperature_2m_max",
             "temperature_2m_min",
             "precipitation_sum",
@@ -152,7 +195,7 @@ def fetch_open_meteo(
         return None, f"Error parsing Open-Meteo data: {e}"
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_7timer(lat: float, lon: float) -> Tuple[Optional[Dict[str, Dict[str, Any]]], Optional[str]]:
     """
     Fetches 7-day civil weather forecast from 7Timer! Keyless Meteorological API.
@@ -230,27 +273,29 @@ def process_forecast_data(
     include_7timer: bool,
     seven_timer_data: Optional[Dict[str, Dict[str, Any]]],
     temp_unit: str = "\u00b0C",
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Merges multi-variable data from all models into standardized DataFrames:
       - df_max: Daily maximum temperatures by source
       - df_min: Daily minimum temperatures by source
       - df_rain: Daily precipitation sum (mm) by source
       - df_cloud: Daily mean cloud cover (%) by source
+      - df_weather: Daily weather condition string (symbol + text) by source
       - df_summary: Daily aggregated ensemble averages, spreads, and weather conditions
     """
     if not open_meteo_raw or "daily" not in open_meteo_raw:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     daily = open_meteo_raw["daily"]
     dates = daily.get("time", [])
     if not dates:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     df_max = pd.DataFrame(index=dates)
     df_min = pd.DataFrame(index=dates)
     df_rain = pd.DataFrame(index=dates)
     df_cloud = pd.DataFrame(index=dates)
+    df_weather = pd.DataFrame(index=dates)
 
     single_model = len(selected_models) == 1
 
@@ -261,21 +306,33 @@ def process_forecast_data(
             min_key = "temperature_2m_min"
             rain_key = "precipitation_sum"
             cloud_key = "cloudcover_mean"
+            code_key = "weather_code"
         else:
             max_key = f"temperature_2m_max_{model_key}"
             min_key = f"temperature_2m_min_{model_key}"
             rain_key = f"precipitation_sum_{model_key}"
             cloud_key = f"cloudcover_mean_{model_key}"
+            code_key = f"weather_code_{model_key}"
 
         max_vals = daily.get(max_key, [None] * len(dates))
         min_vals = daily.get(min_key, [None] * len(dates))
         rain_vals = daily.get(rain_key, [None] * len(dates))
         cloud_vals = daily.get(cloud_key, [None] * len(dates))
+        code_vals = daily.get(code_key, [None] * len(dates))
 
         df_max[label] = [float(v) if v is not None else np.nan for v in max_vals]
         df_min[label] = [float(v) if v is not None else np.nan for v in min_vals]
         df_rain[label] = [float(v) if v is not None else np.nan for v in rain_vals]
         df_cloud[label] = [float(v) if v is not None else np.nan for v in cloud_vals]
+
+        model_weather = []
+        for c in code_vals:
+            if c is not None and not (isinstance(c, float) and np.isnan(c)):
+                sym, desc = get_wmo_weather(c)
+                model_weather.append(f"{sym} {desc}")
+            else:
+                model_weather.append(np.nan)
+        df_weather[label] = model_weather
 
     # Map 7Timer! if selected
     if include_7timer and seven_timer_data:
@@ -284,9 +341,24 @@ def process_forecast_data(
         t7_min = [seven_timer_data.get(d, {}).get("min", np.nan) for d in dates]
         t7_cloud = [seven_timer_data.get(d, {}).get("cloud_est", np.nan) for d in dates]
 
+        t7_weather_map = {
+            "clear": "\u2600\ufe0f Clear sky",
+            "pcloudy": "\u26c5 Partly cloudy",
+            "mcloudy": "\U0001f325\ufe0f Mostly cloudy",
+            "cloudy": "\u2601\ufe0f Overcast",
+            "humid": "\U0001f32b\ufe0f Humid / Fog",
+            "lightrain": "\U0001f326\ufe0f Light rain",
+            "rain": "\U0001f327\ufe0f Rain",
+            "snow": "\U0001f328\ufe0f Snow",
+            "ts": "\u26c8\ufe0f Thunderstorm",
+            "tsrain": "\u26c8\ufe0f Thunderstorm with rain",
+        }
+        t7_weather = [t7_weather_map.get(str(seven_timer_data.get(d, {}).get("weather", "")).lower(), np.nan) if d in seven_timer_data else np.nan for d in dates]
+
         df_max[col_name] = t7_max
         df_min[col_name] = t7_min
         df_cloud[col_name] = t7_cloud
+        df_weather[col_name] = t7_weather
 
     # Fahrenheit conversion for temperature if requested
     if temp_unit == "\u00b0F":
@@ -337,4 +409,4 @@ def process_forecast_data(
         })
 
     df_summary = pd.DataFrame(summary_rows).set_index("Date")
-    return df_max, df_min, df_rain, df_cloud, df_summary
+    return df_max, df_min, df_rain, df_cloud, df_weather, df_summary
