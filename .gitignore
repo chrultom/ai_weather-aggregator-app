@@ -10,6 +10,9 @@ __pycache__/
 __pycache__/
 *.pyc
 
+# Ruff cache
+.ruff_cache/
+
 # VS Code settings
 .vscode/
 .cline/

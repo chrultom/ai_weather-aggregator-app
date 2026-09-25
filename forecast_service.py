@@ -4,7 +4,8 @@ Supported sources: Open-Meteo (Best Match, MET Norway, ECMWF, GFS, ICON) and 7Ti
 Variables: Temperature (Max, Min, Mean), Rain / Precipitation Sum (mm), Cloud Cover (%).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import requests
@@ -76,7 +77,7 @@ WMO_WEATHER_MAP = {
 }
 
 
-def get_wmo_weather(code: Optional[Any]) -> Tuple[str, str]:
+def get_wmo_weather(code: Any | None) -> tuple[str, str]:
     """Resolves WMO weather code into (emoji_symbol, text_description)."""
     if code is None or (isinstance(code, float) and np.isnan(code)):
         return ("\u26c5", "Partly cloudy")
@@ -87,9 +88,8 @@ def get_wmo_weather(code: Optional[Any]) -> Tuple[str, str]:
         return ("\u26c5", "Cloudy")
 
 
-
 @st.cache_data(ttl=3600, show_spinner=False)
-def geocode_city(city_query: str) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+def geocode_city(city_query: str) -> tuple[list[dict[str, Any]] | None, str | None]:
     """
     Converts a city name to geographical coordinates using Open-Meteo Geocoding API.
     Falls back to OpenStreetMap Nominatim if needed.
@@ -109,14 +109,16 @@ def geocode_city(city_query: str) -> Tuple[Optional[List[Dict[str, Any]]], Optio
         if results:
             standardized = []
             for r in results:
-                standardized.append({
-                    "name": r.get("name", city),
-                    "country": r.get("country", ""),
-                    "admin1": r.get("admin1", ""),
-                    "latitude": float(r["latitude"]),
-                    "longitude": float(r["longitude"]),
-                    "elevation": r.get("elevation", "N/A"),
-                })
+                standardized.append(
+                    {
+                        "name": r.get("name", city),
+                        "country": r.get("country", ""),
+                        "admin1": r.get("admin1", ""),
+                        "latitude": float(r["latitude"]),
+                        "longitude": float(r["longitude"]),
+                        "elevation": r.get("elevation", "N/A"),
+                    }
+                )
             return standardized, None
     except requests.exceptions.RequestException:
         pass
@@ -126,7 +128,9 @@ def geocode_city(city_query: str) -> Tuple[Optional[List[Dict[str, Any]]], Optio
         nom_url = "https://nominatim.openstreetmap.org/search"
         headers = {"User-Agent": "WeatherForecastAggregator/2.0"}
         nom_params = {"q": city, "format": "json", "limit": 5, "addressdetails": 1}
-        res = requests.get(nom_url, params=nom_params, headers=headers, timeout=API_TIMEOUT)
+        res = requests.get(
+            nom_url, params=nom_params, headers=headers, timeout=API_TIMEOUT
+        )
         res.raise_for_status()
         nom_data = res.json()
         if nom_data:
@@ -135,28 +139,33 @@ def geocode_city(city_query: str) -> Tuple[Optional[List[Dict[str, Any]]], Optio
                 addr = item.get("address", {})
                 country = addr.get("country", "")
                 state = addr.get("state", addr.get("county", ""))
-                standardized.append({
-                    "name": item.get("display_name", "").split(",")[0],
-                    "country": country,
-                    "admin1": state,
-                    "latitude": float(item["lat"]),
-                    "longitude": float(item["lon"]),
-                    "elevation": "N/A",
-                })
+                standardized.append(
+                    {
+                        "name": item.get("display_name", "").split(",")[0],
+                        "country": country,
+                        "admin1": state,
+                        "latitude": float(item["lat"]),
+                        "longitude": float(item["lon"]),
+                        "elevation": "N/A",
+                    }
+                )
             return standardized, None
-    except Exception as e:
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
         return None, f"Geocoding network error: {e}"
 
-    return None, f"Could not find location coordinates for '{city}'. Please verify spelling."
+    return (
+        None,
+        f"Could not find location coordinates for '{city}'. Please verify spelling.",
+    )
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_open_meteo(
     lat: float,
     lon: float,
-    models: List[str],
+    models: list[str],
     forecast_days: int = 14,
-) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+) -> tuple[dict[str, Any] | None, str | None]:
     """
     Fetches temperature, rain (precipitation sum), and cloud cover forecasts
     across selected numerical models via Open-Meteo.
@@ -191,18 +200,25 @@ def fetch_open_meteo(
         return None, "Open-Meteo request timed out. Please try again."
     except requests.exceptions.RequestException as e:
         return None, f"Open-Meteo connection error: {e}"
-    except Exception as e:
+    except (ValueError, KeyError) as e:
         return None, f"Error parsing Open-Meteo data: {e}"
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_7timer(lat: float, lon: float) -> Tuple[Optional[Dict[str, Dict[str, Any]]], Optional[str]]:
+def fetch_7timer(
+    lat: float, lon: float
+) -> tuple[dict[str, dict[str, Any]] | None, str | None]:
     """
     Fetches 7-day civil weather forecast from 7Timer! Keyless Meteorological API.
     Returns { 'YYYY-MM-DD': {'max': temp, 'min': temp, 'weather': str, 'cloud_est': float} }.
     """
     url = "http://www.7timer.info/bin/api.pl"
-    params = {"lon": round(lon, 4), "lat": round(lat, 4), "product": "civillight", "output": "json"}
+    params = {
+        "lon": round(lon, 4),
+        "lat": round(lat, 4),
+        "product": "civillight",
+        "output": "json",
+    }
 
     weather_cloud_map = {
         "clear": 10.0,
@@ -245,7 +261,7 @@ def fetch_7timer(lat: float, lon: float) -> Tuple[Optional[Dict[str, Dict[str, A
         return None, "7Timer! request timed out."
     except requests.exceptions.RequestException as e:
         return None, f"7Timer! API error: {e}"
-    except Exception as e:
+    except (ValueError, KeyError) as e:
         return None, f"7Timer! data error: {e}"
 
 
@@ -268,12 +284,14 @@ def get_sky_condition(cloud_pct: float, rain_mm: float) -> str:
 
 
 def process_forecast_data(
-    open_meteo_raw: Optional[Dict[str, Any]],
-    selected_models: List[str],
+    open_meteo_raw: dict[str, Any] | None,
+    selected_models: list[str],
     include_7timer: bool,
-    seven_timer_data: Optional[Dict[str, Dict[str, Any]]],
+    seven_timer_data: dict[str, dict[str, Any]] | None,
     temp_unit: str = "\u00b0C",
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[
+    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
+]:
     """
     Merges multi-variable data from all models into standardized DataFrames:
       - df_max: Daily maximum temperatures by source
@@ -284,12 +302,26 @@ def process_forecast_data(
       - df_summary: Daily aggregated ensemble averages, spreads, and weather conditions
     """
     if not open_meteo_raw or "daily" not in open_meteo_raw:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+        )
 
     daily = open_meteo_raw["daily"]
     dates = daily.get("time", [])
     if not dates:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+        )
 
     df_max = pd.DataFrame(index=dates)
     df_min = pd.DataFrame(index=dates)
@@ -353,7 +385,14 @@ def process_forecast_data(
             "ts": "\u26c8\ufe0f Thunderstorm",
             "tsrain": "\u26c8\ufe0f Thunderstorm with rain",
         }
-        t7_weather = [t7_weather_map.get(str(seven_timer_data.get(d, {}).get("weather", "")).lower(), np.nan) if d in seven_timer_data else np.nan for d in dates]
+        t7_weather = [
+            t7_weather_map.get(
+                str(seven_timer_data.get(d, {}).get("weather", "")).lower(), np.nan
+            )
+            if d in seven_timer_data
+            else np.nan
+            for d in dates
+        ]
 
         df_max[col_name] = t7_max
         df_min[col_name] = t7_min
@@ -370,8 +409,16 @@ def process_forecast_data(
     for d in dates:
         row_max = df_max.loc[d].dropna()
         row_min = df_min.loc[d].dropna()
-        row_rain = df_rain.loc[d].dropna() if not df_rain.empty and d in df_rain.index else pd.Series(dtype=float)
-        row_cloud = df_cloud.loc[d].dropna() if not df_cloud.empty and d in df_cloud.index else pd.Series(dtype=float)
+        row_rain = (
+            df_rain.loc[d].dropna()
+            if not df_rain.empty and d in df_rain.index
+            else pd.Series(dtype=float)
+        )
+        row_cloud = (
+            df_cloud.loc[d].dropna()
+            if not df_cloud.empty and d in df_cloud.index
+            else pd.Series(dtype=float)
+        )
 
         count = len(row_max)
 
@@ -384,7 +431,12 @@ def process_forecast_data(
             spread = peak_max - low_min
         else:
             avg_max, avg_min, overall_mean, peak_max, low_min, spread = (
-                np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
             )
 
         avg_rain = row_rain.mean() if len(row_rain) > 0 else 0.0
@@ -393,20 +445,22 @@ def process_forecast_data(
 
         condition = get_sky_condition(avg_cloud, avg_rain)
 
-        summary_rows.append({
-            "Date": d,
-            "Daily Avg Max": avg_max,
-            "Daily Avg Min": avg_min,
-            "Daily Mean Temp": overall_mean,
-            "Highest Max": peak_max,
-            "Lowest Min": low_min,
-            "Model Spread": spread,
-            "Daily Avg Rain (mm)": avg_rain,
-            "Max Model Rain (mm)": max_rain,
-            "Daily Avg Cloud (%)": avg_cloud,
-            "Sky Condition": condition,
-            "Sources Available": count,
-        })
+        summary_rows.append(
+            {
+                "Date": d,
+                "Daily Avg Max": avg_max,
+                "Daily Avg Min": avg_min,
+                "Daily Mean Temp": overall_mean,
+                "Highest Max": peak_max,
+                "Lowest Min": low_min,
+                "Model Spread": spread,
+                "Daily Avg Rain (mm)": avg_rain,
+                "Max Model Rain (mm)": max_rain,
+                "Daily Avg Cloud (%)": avg_cloud,
+                "Sky Condition": condition,
+                "Sources Available": count,
+            }
+        )
 
     df_summary = pd.DataFrame(summary_rows).set_index("Date")
     return df_max, df_min, df_rain, df_cloud, df_weather, df_summary

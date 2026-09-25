@@ -4,21 +4,19 @@ Tests Temperature, Rain, Cloudiness, Geocoding, and MET Norway (metno_seamless) 
 """
 
 import unittest
-import numpy as np
+
 import pandas as pd
 
 from forecast_service import (
-    AVAILABLE_MODELS,
-    geocode_city,
-    fetch_open_meteo,
     fetch_7timer,
+    fetch_open_meteo,
+    geocode_city,
     get_sky_condition,
     process_forecast_data,
 )
 
 
 class TestForecastService(unittest.TestCase):
-
     def test_geocoding_szczecin(self):
         results, err = geocode_city("Szczecin")
         self.assertIsNone(err)
@@ -97,12 +95,14 @@ class TestForecastService(unittest.TestCase):
                 "cloudcover_mean_metno_seamless": [35.0, 90.0],
             }
         }
-        df_max, df_min, df_rain, df_cloud, df_weather, df_summary = process_forecast_data(
-            open_meteo_raw=mock_om,
-            selected_models=["best_match", "metno_seamless"],
-            include_7timer=False,
-            seven_timer_data=None,
-            temp_unit="\u00b0C",
+        _df_max, _df_min, _df_rain, _df_cloud, df_weather, df_summary = (
+            process_forecast_data(
+                open_meteo_raw=mock_om,
+                selected_models=["best_match", "metno_seamless"],
+                include_7timer=False,
+                seven_timer_data=None,
+                temp_unit="\u00b0C",
+            )
         )
 
         # Day 1: Max Avg = 19.0, Min Avg = 9.0, Mean = 14.0
@@ -112,7 +112,9 @@ class TestForecastService(unittest.TestCase):
         self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Avg Min"], 9.0)
         self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Mean Temp"], 14.0)
         self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Avg Rain (mm)"], 0.1)
-        self.assertAlmostEqual(df_summary.loc["2026-09-25", "Daily Avg Cloud (%)"], 30.0)
+        self.assertAlmostEqual(
+            df_summary.loc["2026-09-25", "Daily Avg Cloud (%)"], 30.0
+        )
         self.assertEqual(len(df_weather.columns), 2)
 
         # Day 2: Rain Avg = (5.0 + 7.0) / 2 = 6.0 mm, Max Model Rain = 7.0
@@ -121,26 +123,37 @@ class TestForecastService(unittest.TestCase):
         self.assertIn("Rain", df_summary.loc["2026-09-26", "Sky Condition"])
 
     def test_table_components(self):
-        from table_view import format_table_date, build_ensemble_table_df, build_comparison_matrix
+        from table_view import (
+            build_ensemble_table_df,
+            format_table_date,
+        )
+
         formatted = format_table_date("2026-09-25")
         self.assertEqual(formatted, "Friday 25 Sep")
 
-        mock_summary = pd.DataFrame([{
-            "Date": "2026-09-25",
-            "Daily Avg Max": 20.0,
-            "Daily Avg Min": 10.0,
-            "Daily Mean Temp": 15.0,
-            "Daily Avg Rain (mm)": 0.5,
-            "Daily Avg Cloud (%)": 50.0,
-            "Model Spread": 2.0,
-            "Sources Available": 3,
-            "Sky Condition": "\u26c5 Partly Cloudy",
-        }]).set_index("Date")
+        mock_summary = pd.DataFrame(
+            [
+                {
+                    "Date": "2026-09-25",
+                    "Daily Avg Max": 20.0,
+                    "Daily Avg Min": 10.0,
+                    "Daily Mean Temp": 15.0,
+                    "Daily Avg Rain (mm)": 0.5,
+                    "Daily Avg Cloud (%)": 50.0,
+                    "Model Spread": 2.0,
+                    "Sources Available": 3,
+                    "Sky Condition": "\u26c5 Partly Cloudy",
+                }
+            ]
+        ).set_index("Date")
 
         ensemble_df = build_ensemble_table_df(mock_summary, "\u00b0C")
         self.assertEqual(len(ensemble_df), 1)
         self.assertIn("Friday 25 Sep", ensemble_df.index)
-        self.assertEqual(ensemble_df.loc["Friday 25 Sep", "Weather Condition"], "\u26c5 Partly Cloudy")
+        self.assertEqual(
+            ensemble_df.loc["Friday 25 Sep", "Weather Condition"],
+            "\u26c5 Partly Cloudy",
+        )
 
 
 if __name__ == "__main__":

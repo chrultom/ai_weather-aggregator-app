@@ -4,7 +4,6 @@ Provides complete tabular forecasts comparing all available models
 (MET Norway, ECMWF, GFS, Best Match, ICON, 7Timer) on one page.
 """
 
-from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -15,7 +14,7 @@ def format_table_date(date_str: str) -> str:
     try:
         dt = pd.to_datetime(date_str)
         return dt.strftime("%A %d %b")
-    except Exception:
+    except (ValueError, TypeError):
         return date_str
 
 
@@ -29,7 +28,11 @@ def build_ensemble_table_df(df_summary: pd.DataFrame, temp_unit: str) -> pd.Data
 
         max_t = row.get("Daily Avg Max", np.nan)
         min_t = row.get("Daily Avg Min", np.nan)
-        temp_str = f"{max_t:.1f}{temp_unit} / {min_t:.1f}{temp_unit}" if not np.isnan(max_t) and not np.isnan(min_t) else "\u2014"
+        temp_str = (
+            f"{max_t:.1f}{temp_unit} / {min_t:.1f}{temp_unit}"
+            if not np.isnan(max_t) and not np.isnan(min_t)
+            else "\u2014"
+        )
 
         rain = row.get("Daily Avg Rain (mm)", 0.0)
         rain_str = f"{rain:.1f} mm" if not np.isnan(rain) else "\u2014"
@@ -38,20 +41,24 @@ def build_ensemble_table_df(df_summary: pd.DataFrame, temp_unit: str) -> pd.Data
         cloud_str = f"{cloud:.0f}%" if not np.isnan(cloud) else "\u2014"
 
         spread = row.get("Model Spread", np.nan)
-        spread_str = f"\u00b1{spread/2:.1f}{temp_unit}" if not np.isnan(spread) else "\u2014"
+        spread_str = (
+            f"\u00b1{spread / 2:.1f}{temp_unit}" if not np.isnan(spread) else "\u2014"
+        )
 
         sources = int(row.get("Sources Available", 0))
 
-        rows.append({
-            "Date": date_label,
-            "Raw Date": d,
-            "Weather Condition": sky,
-            f"Max / Min Temp ({temp_unit})": temp_str,
-            "Precipitation (Rain)": rain_str,
-            "Cloud Cover": cloud_str,
-            "Model Spread": spread_str,
-            "Models Reporting": f"{sources} models",
-        })
+        rows.append(
+            {
+                "Date": date_label,
+                "Raw Date": d,
+                "Weather Condition": sky,
+                f"Max / Min Temp ({temp_unit})": temp_str,
+                "Precipitation (Rain)": rain_str,
+                "Cloud Cover": cloud_str,
+                "Model Spread": spread_str,
+                "Models Reporting": f"{sources} models",
+            }
+        )
 
     return pd.DataFrame(rows).set_index("Date")
 
@@ -73,13 +80,25 @@ def build_single_model_table_df(
         date_label = format_table_date(d)
 
         # Weather string
-        weather_val = df_weather.loc[d, model_col] if model_col in df_weather.columns and d in df_weather.index else "\u2014"
+        weather_val = (
+            df_weather.loc[d, model_col]
+            if model_col in df_weather.columns and d in df_weather.index
+            else "\u2014"
+        )
         if pd.isna(weather_val):
             weather_val = "\u2014"
 
         # Max / Min
-        t_max = df_max.loc[d, model_col] if model_col in df_max.columns and d in df_max.index else np.nan
-        t_min = df_min.loc[d, model_col] if model_col in df_min.columns and d in df_min.index else np.nan
+        t_max = (
+            df_max.loc[d, model_col]
+            if model_col in df_max.columns and d in df_max.index
+            else np.nan
+        )
+        t_min = (
+            df_min.loc[d, model_col]
+            if model_col in df_min.columns and d in df_min.index
+            else np.nan
+        )
         if not np.isnan(t_max) and not np.isnan(t_min):
             temp_str = f"{t_max:.1f}{temp_unit} / {t_min:.1f}{temp_unit}"
         elif not np.isnan(t_max):
@@ -88,23 +107,32 @@ def build_single_model_table_df(
             temp_str = "\u2014"
 
         # Rain
-        r_val = df_rain.loc[d, model_col] if model_col in df_rain.columns and d in df_rain.index else np.nan
+        r_val = (
+            df_rain.loc[d, model_col]
+            if model_col in df_rain.columns and d in df_rain.index
+            else np.nan
+        )
         rain_str = f"{r_val:.1f} mm" if not np.isnan(r_val) else "\u2014"
 
         # Cloud
-        c_val = df_cloud.loc[d, model_col] if model_col in df_cloud.columns and d in df_cloud.index else np.nan
+        c_val = (
+            df_cloud.loc[d, model_col]
+            if model_col in df_cloud.columns and d in df_cloud.index
+            else np.nan
+        )
         cloud_str = f"{c_val:.0f}%" if not np.isnan(c_val) else "\u2014"
 
-        rows.append({
-            "Date": date_label,
-            "Weather Condition": weather_val,
-            f"Max / Min Temp ({temp_unit})": temp_str,
-            "Precipitation (Rain)": rain_str,
-            "Cloud Cover": cloud_str,
-        })
+        rows.append(
+            {
+                "Date": date_label,
+                "Weather Condition": weather_val,
+                f"Max / Min Temp ({temp_unit})": temp_str,
+                "Precipitation (Rain)": rain_str,
+                "Cloud Cover": cloud_str,
+            }
+        )
 
     return pd.DataFrame(rows).set_index("Date")
-
 
 
 def build_comparison_matrix(
@@ -140,9 +168,13 @@ def build_comparison_matrix(
         e_sky = sum_row.get("Sky Condition", "")
 
         if view_metric == "Overview (Weather \u2022 Temp \u2022 Rain)":
-            row_dict["\U0001f3c6 Ensemble Consensus"] = f"{e_sky.split(' ')[0]} {e_max:.1f}\u00b0/{e_min:.1f}\u00b0 \u2022 {e_rain:.1f}mm"
+            row_dict["\U0001f3c6 Ensemble Consensus"] = (
+                f"{e_sky.split(' ')[0]} {e_max:.1f}\u00b0/{e_min:.1f}\u00b0 \u2022 {e_rain:.1f}mm"
+            )
         elif view_metric == "Max / Min Temperature":
-            row_dict["\U0001f3c6 Ensemble Consensus"] = f"{e_max:.1f}{temp_unit} / {e_min:.1f}{temp_unit}"
+            row_dict["\U0001f3c6 Ensemble Consensus"] = (
+                f"{e_max:.1f}{temp_unit} / {e_min:.1f}{temp_unit}"
+            )
         elif view_metric == "Precipitation (Rain mm)":
             row_dict["\U0001f3c6 Ensemble Consensus"] = f"{e_rain:.1f} mm"
         elif view_metric == "Weather & Sky Condition":
@@ -150,20 +182,48 @@ def build_comparison_matrix(
 
         # Add each model
         for m in models:
-            m_max = df_max.loc[d, m] if m in df_max.columns and d in df_max.index else np.nan
-            m_min = df_min.loc[d, m] if m in df_min.columns and d in df_min.index else np.nan
-            m_rain = df_rain.loc[d, m] if m in df_rain.columns and d in df_rain.index else np.nan
-            m_w = df_weather.loc[d, m] if m in df_weather.columns and d in df_weather.index else "\u2014"
+            m_max = (
+                df_max.loc[d, m]
+                if m in df_max.columns and d in df_max.index
+                else np.nan
+            )
+            m_min = (
+                df_min.loc[d, m]
+                if m in df_min.columns and d in df_min.index
+                else np.nan
+            )
+            m_rain = (
+                df_rain.loc[d, m]
+                if m in df_rain.columns and d in df_rain.index
+                else np.nan
+            )
+            m_w = (
+                df_weather.loc[d, m]
+                if m in df_weather.columns and d in df_weather.index
+                else "\u2014"
+            )
             if pd.isna(m_w):
                 m_w = "\u2014"
 
             if view_metric == "Overview (Weather \u2022 Temp \u2022 Rain)":
-                w_symbol = m_w.split(" ")[0] if isinstance(m_w, str) and m_w != "\u2014" else "\u26c5"
-                t_str = f"{m_max:.1f}\u00b0/{m_min:.1f}\u00b0" if not np.isnan(m_max) and not np.isnan(m_min) else "\u2014"
+                w_symbol = (
+                    m_w.split(" ")[0]
+                    if isinstance(m_w, str) and m_w != "\u2014"
+                    else "\u26c5"
+                )
+                t_str = (
+                    f"{m_max:.1f}\u00b0/{m_min:.1f}\u00b0"
+                    if not np.isnan(m_max) and not np.isnan(m_min)
+                    else "\u2014"
+                )
                 r_str = f"{m_rain:.1f}mm" if not np.isnan(m_rain) else "\u2014"
                 row_dict[m] = f"{w_symbol} {t_str} \u2022 {r_str}"
             elif view_metric == "Max / Min Temperature":
-                row_dict[m] = f"{m_max:.1f}{temp_unit} / {m_min:.1f}{temp_unit}" if not np.isnan(m_max) and not np.isnan(m_min) else "\u2014"
+                row_dict[m] = (
+                    f"{m_max:.1f}{temp_unit} / {m_min:.1f}{temp_unit}"
+                    if not np.isnan(m_max) and not np.isnan(m_min)
+                    else "\u2014"
+                )
             elif view_metric == "Precipitation (Rain mm)":
                 row_dict[m] = f"{m_rain:.1f} mm" if not np.isnan(m_rain) else "\u2014"
             elif view_metric == "Weather & Sky Condition":
@@ -172,8 +232,6 @@ def build_comparison_matrix(
         matrix_rows.append(row_dict)
 
     return pd.DataFrame(matrix_rows).set_index("Date")
-
-
 
 
 def render_table_subpage(
@@ -198,16 +256,22 @@ def render_table_subpage(
     )
 
     # Subpage navigation tabs for table views
-    table_tab_consensus, table_tab_matrix, table_tab_inspector, table_tab_models = st.tabs([
-        "\U0001f3c6 Master Ensemble Table",
-        "\U0001f4ca All Models Comparison Matrix (All on One Screen)",
-        "\U0001f50d Daily Cross-Model Inspector",
-        "\U0001f4d1 Individual Model Tables",
-    ])
+    table_tab_consensus, table_tab_matrix, table_tab_inspector, table_tab_models = (
+        st.tabs(
+            [
+                "\U0001f3c6 Master Ensemble Table",
+                "\U0001f4ca All Models Comparison Matrix (All on One Screen)",
+                "\U0001f50d Daily Cross-Model Inspector",
+                "\U0001f4d1 Individual Model Tables",
+            ]
+        )
+    )
 
     with table_tab_consensus:
         st.subheader(f"\U0001f3c6 Master Ensemble Forecast Table \u2014 {city_name}")
-        st.caption("Consensus forecast aggregated from all reporting weather models in a clean tabular view.")
+        st.caption(
+            "Consensus forecast aggregated from all reporting weather models in a clean tabular view."
+        )
 
         ensemble_df = build_ensemble_table_df(df_summary, temp_unit)
         st.dataframe(ensemble_df, use_container_width=True, height=520)
@@ -221,8 +285,12 @@ def render_table_subpage(
         )
 
     with table_tab_matrix:
-        st.subheader(f"\U0001f4ca All Weather Models Comparison Matrix \u2014 {city_name}")
-        st.caption("Side-by-side comparative table showing all weather models simultaneously across each calendar day.")
+        st.subheader(
+            f"\U0001f4ca All Weather Models Comparison Matrix \u2014 {city_name}"
+        )
+        st.caption(
+            "Side-by-side comparative table showing all weather models simultaneously across each calendar day."
+        )
 
         view_metric = st.selectbox(
             "Matrix Display Mode:",
@@ -256,11 +324,11 @@ def render_table_subpage(
             key="dl_matrix_csv",
         )
 
-
-
     with table_tab_inspector:
         st.subheader(f"\U0001f50d Daily Cross-Model Inspector \u2014 {city_name}")
-        st.caption("Inspect any individual day in detail to see the exact predictions from every active model.")
+        st.caption(
+            "Inspect any individual day in detail to see the exact predictions from every active model."
+        )
 
         date_options = df_summary.index.tolist()
         date_labels = [f"{format_table_date(d)} ({d})" for d in date_options]
@@ -280,15 +348,21 @@ def render_table_subpage(
         sum_row = df_summary.loc[selected_d]
         e_max = sum_row.get("Daily Avg Max", np.nan)
         e_min = sum_row.get("Daily Avg Min", np.nan)
-        day_rows.append({
-            "Forecast Source / Model": "\U0001f3c6 Ensemble Consensus",
-            "Weather Condition": sum_row.get("Sky Condition", "N/A"),
-            f"Max Temp ({temp_unit})": f"{e_max:.1f}" if not np.isnan(e_max) else "\u2014",
-            f"Min Temp ({temp_unit})": f"{e_min:.1f}" if not np.isnan(e_min) else "\u2014",
-            "Precipitation (Rain)": f"{sum_row.get('Daily Avg Rain (mm)', 0.0):.1f} mm",
-            "Cloud Cover": f"{sum_row.get('Daily Avg Cloud (%)', 0):.0f}%",
-            "Model Spread / Note": "Consensus ensemble average",
-        })
+        day_rows.append(
+            {
+                "Forecast Source / Model": "\U0001f3c6 Ensemble Consensus",
+                "Weather Condition": sum_row.get("Sky Condition", "N/A"),
+                f"Max Temp ({temp_unit})": f"{e_max:.1f}"
+                if not np.isnan(e_max)
+                else "\u2014",
+                f"Min Temp ({temp_unit})": f"{e_min:.1f}"
+                if not np.isnan(e_min)
+                else "\u2014",
+                "Precipitation (Rain)": f"{sum_row.get('Daily Avg Rain (mm)', 0.0):.1f} mm",
+                "Cloud Cover": f"{sum_row.get('Daily Avg Cloud (%)', 0):.0f}%",
+                "Model Spread / Note": "Consensus ensemble average",
+            }
+        )
 
         for m in df_max.columns:
             m_max = df_max.loc[selected_d, m] if m in df_max.columns else np.nan
@@ -299,17 +373,31 @@ def render_table_subpage(
             if pd.isna(m_w):
                 m_w = "\u2014"
 
-            diff_str = f"{m_max - e_max:+.1f}{temp_unit}" if not np.isnan(m_max) and not np.isnan(e_max) else "\u2014"
+            diff_str = (
+                f"{m_max - e_max:+.1f}{temp_unit}"
+                if not np.isnan(m_max) and not np.isnan(e_max)
+                else "\u2014"
+            )
 
-            day_rows.append({
-                "Forecast Source / Model": m,
-                "Weather Condition": m_w,
-                f"Max Temp ({temp_unit})": f"{m_max:.1f}" if not np.isnan(m_max) else "\u2014",
-                f"Min Temp ({temp_unit})": f"{m_min:.1f}" if not np.isnan(m_min) else "\u2014",
-                "Precipitation (Rain)": f"{m_rain:.1f} mm" if not np.isnan(m_rain) else "\u2014",
-                "Cloud Cover": f"{m_cloud:.0f}%" if not np.isnan(m_cloud) else "\u2014",
-                "Model Spread / Note": f"Diff from consensus: {diff_str}",
-            })
+            day_rows.append(
+                {
+                    "Forecast Source / Model": m,
+                    "Weather Condition": m_w,
+                    f"Max Temp ({temp_unit})": f"{m_max:.1f}"
+                    if not np.isnan(m_max)
+                    else "\u2014",
+                    f"Min Temp ({temp_unit})": f"{m_min:.1f}"
+                    if not np.isnan(m_min)
+                    else "\u2014",
+                    "Precipitation (Rain)": f"{m_rain:.1f} mm"
+                    if not np.isnan(m_rain)
+                    else "\u2014",
+                    "Cloud Cover": f"{m_cloud:.0f}%"
+                    if not np.isnan(m_cloud)
+                    else "\u2014",
+                    "Model Spread / Note": f"Diff from consensus: {diff_str}",
+                }
+            )
 
         day_df = pd.DataFrame(day_rows).set_index("Forecast Source / Model")
         st.markdown(f"#### Forecast for **{selected_label}** across all active models:")
@@ -341,4 +429,3 @@ def render_table_subpage(
                     mime="text/csv",
                     key=f"dl_single_{m_col}",
                 )
-

@@ -11,7 +11,11 @@ This project is an experimental implementation where 100% of the code was genera
 - 🌐 **Free Global Geocoding:** Search any city worldwide using Open-Meteo Geocoding API with OpenStreetMap Nominatim fallback and location disambiguation.
 - 📈 **Interactive Visualizations:** Comparative line and grouped bar charts powered by Plotly with hover tooltips, zoom, and trace toggling.
 - 📋 **Comparative Data Table & CSV Export:** Unified tabular view with individual model breakdowns and 1-click CSV download.
-- 📅 **Multi-Model Table View Subpage:** Dedicated table view subpage presenting all numerical weather models on one screen (Cross-Model Comparison Matrix, Master Ensemble Table, and Daily Model Inspector).
+- 📅 **Table View Subpage:** Dedicated subpage displaying all models on one screen with 4 flexible modes:
+  - 🏆 **Master Ensemble Table:** Unified consensus table displaying daily weather symbols, max/min temps, rain, and cloud cover.
+  - 📊 **All Models Comparison Matrix:** Side-by-side comparison across all models for every calendar day on one screen.
+  - 🔍 **Daily Cross-Model Inspector:** Day-by-day analysis comparing individual model forecasts and deviations from consensus.
+  - 📑 **Individual Model Tables:** Complete forecast tables for each provider (MET Norway, ECMWF, GFS, Best Match, ICON, 7Timer).
 - 🔑 **100% Free & Keyless:** No API keys or registration required.
 
 ## Technology Stack

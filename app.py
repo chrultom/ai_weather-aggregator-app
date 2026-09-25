@@ -5,24 +5,25 @@ Integrates Open-Meteo (Best Match, MET Norway, ECMWF, GFS, ICON) & 7Timer!
 """
 
 import datetime
+
 import pandas as pd
 import streamlit as st
 
 from forecast_service import (
     AVAILABLE_MODELS,
-    geocode_city,
-    fetch_open_meteo,
     fetch_7timer,
+    fetch_open_meteo,
+    geocode_city,
     process_forecast_data,
 )
+from table_view import render_table_subpage
 from ui_components import (
+    plot_cloud_forecast,
     plot_master_consensus,
     plot_rain_forecast,
-    plot_cloud_forecast,
-    plot_temp_comparison,
     plot_spread,
+    plot_temp_comparison,
 )
-from table_view import render_table_subpage
 
 # ==============================================================================
 # 1. Page Configuration & Styling
@@ -82,7 +83,16 @@ with st.sidebar:
         help="Type any city worldwide (e.g. Szczecin, Oslo, Berlin, Warsaw, New York).",
     )
 
-    quick_options = ["(Custom)", "Szczecin", "Warsaw", "Berlin", "Oslo", "London", "New York", "Tokyo"]
+    quick_options = [
+        "(Custom)",
+        "Szczecin",
+        "Warsaw",
+        "Berlin",
+        "Oslo",
+        "London",
+        "New York",
+        "Tokyo",
+    ]
     chosen_quick = st.selectbox("Quick City Presets:", quick_options)
     if chosen_quick != "(Custom)":
         city_input = chosen_quick
@@ -110,8 +120,15 @@ with st.sidebar:
     checked_open_meteo = []
     for m_id, meta in AVAILABLE_MODELS.items():
         # Default checked models: best_match, metno_seamless, ecmwf_ifs025, gfs_seamless
-        is_default = m_id in ["best_match", "metno_seamless", "ecmwf_ifs025", "gfs_seamless"]
-        if st.checkbox(f"{meta['label']} ({meta['horizon']})", value=is_default, key=f"m_{m_id}"):
+        is_default = m_id in [
+            "best_match",
+            "metno_seamless",
+            "ecmwf_ifs025",
+            "gfs_seamless",
+        ]
+        if st.checkbox(
+            f"{meta['label']} ({meta['horizon']})", value=is_default, key=f"m_{m_id}"
+        ):
             checked_open_meteo.append(m_id)
 
     use_7timer = st.checkbox(
@@ -122,7 +139,9 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    submit_clicked = st.button("\U0001f504 Update Forecast", type="primary", use_container_width=True)
+    submit_clicked = st.button(
+        "\U0001f504 Update Forecast", type="primary", use_container_width=True
+    )
 
     st.caption("Data Sources: Open-Meteo & 7Timer! APIs (Keyless & Free)")
 
@@ -130,7 +149,10 @@ with st.sidebar:
 # ==============================================================================
 # 3. Main Dashboard Body
 # ==============================================================================
-st.markdown('<div class="main-header">\u26c5 Long-Term Weather Forecast Aggregator</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-header">\u26c5 Long-Term Weather Forecast Aggregator</div>',
+    unsafe_allow_html=True,
+)
 st.markdown(
     '<div class="sub-header">Multi-model 7\u201314 day forecast synthesizing Open-Meteo models (Best Match, MET Norway / yr.no, ECMWF, GFS, ICON) & 7Timer! for <b>Temperature</b>, <b>Rain</b>, and <b>Cloudiness</b></div>',
     unsafe_allow_html=True,
@@ -153,7 +175,9 @@ if geo_err:
     st.stop()
 
 if not locations:
-    st.error(f"\u274c No matching coordinates found for '{city_input}'. Please check spelling.")
+    st.error(
+        f"\u274c No matching coordinates found for '{city_input}'. Please check spelling."
+    )
     st.stop()
 
 # Multi-result disambiguation if user entered ambiguous city name
@@ -164,7 +188,11 @@ if len(locations) > 1:
         for loc in locations
     ]
     with st.expander("\U0001f4cd Disambiguate Location", expanded=False):
-        pick = st.selectbox("Select your target location:", range(len(options_fmt)), format_func=lambda i: options_fmt[i])
+        pick = st.selectbox(
+            "Select your target location:",
+            range(len(options_fmt)),
+            format_func=lambda i: options_fmt[i],
+        )
         selected_location = locations[pick]
 
 lat = selected_location["latitude"]
@@ -177,13 +205,29 @@ elev = selected_location["elevation"]
 # Location Info Banner (Timezone removed as requested)
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.metric("\U0001f4cd City / Region", f"{city_clean_name}", f"{admin}, {country}" if admin else country)
+    st.metric(
+        "\U0001f4cd City / Region",
+        f"{city_clean_name}",
+        f"{admin}, {country}" if admin else country,
+    )
 with c2:
-    st.metric("\U0001f310 Coordinates & Elevation", f"{lat:.4f}\u00b0, {lon:.4f}\u00b0", f"Elevation: {elev} m" if elev != "N/A" else None)
+    st.metric(
+        "\U0001f310 Coordinates & Elevation",
+        f"{lat:.4f}\u00b0, {lon:.4f}\u00b0",
+        f"Elevation: {elev} m" if elev != "N/A" else None,
+    )
 with c3:
     total_sources = len(checked_open_meteo) + (1 if use_7timer else 0)
-    met_badge = "MET Norway active" if "metno_seamless" in checked_open_meteo else "MET Norway off"
-    st.metric("\U0001f4e1 Active Models", f"{total_sources} Sources", f"{days_horizon}-Day Horizon \u2022 {met_badge}")
+    met_badge = (
+        "MET Norway active"
+        if "metno_seamless" in checked_open_meteo
+        else "MET Norway off"
+    )
+    st.metric(
+        "\U0001f4e1 Active Models",
+        f"{total_sources} Sources",
+        f"{days_horizon}-Day Horizon \u2022 {met_badge}",
+    )
 
 st.markdown("---")
 
@@ -200,10 +244,14 @@ with st.spinner("Fetching multi-variable forecast data across weather models..."
 if om_err:
     st.warning(f"\u26a0\ufe0f Open-Meteo Notice: {om_err}")
 if t7_err and use_7timer:
-    st.warning(f"\u2139\ufe0f 7Timer! Notice: {t7_err} (Continuing with available models)")
+    st.warning(
+        f"\u2139\ufe0f 7Timer! Notice: {t7_err} (Continuing with available models)"
+    )
 
 if not om_data and not t7_data:
-    st.warning("\u274c Unable to retrieve data from any weather source. Please check connection.")
+    st.warning(
+        "\u274c Unable to retrieve data from any weather source. Please check connection."
+    )
     st.stop()
 
 # --- Step C: Data Processing & Aggregation ---
@@ -240,7 +288,9 @@ if app_view == "\U0001f4cb Table View":
     st.stop()
 
 # --- Step D: Comprehensive Summary KPIs ---
-st.subheader("\U0001f4ca Forecast Highlights (Temperature \u2022 Rain \u2022 Cloudiness)")
+st.subheader(
+    "\U0001f4ca Forecast Highlights (Temperature \u2022 Rain \u2022 Cloudiness)"
+)
 k1, k2, k3, k4, k5 = st.columns(5)
 
 today_idx = df_summary.index[0]
@@ -278,9 +328,12 @@ with k3:
 with k4:
     period_avg_cloud = df_summary["Daily Avg Cloud (%)"].mean()
     cloud_label = (
-        "Sunny / Clear" if period_avg_cloud < 25
-        else "Partly Cloudy" if period_avg_cloud < 60
-        else "Mostly Cloudy" if period_avg_cloud < 80
+        "Sunny / Clear"
+        if period_avg_cloud < 25
+        else "Partly Cloudy"
+        if period_avg_cloud < 60
+        else "Mostly Cloudy"
+        if period_avg_cloud < 80
         else "Overcast"
     )
     st.metric(
@@ -303,21 +356,27 @@ with k5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- Step E: Visualizations & Detailed Tabs ---
-tab_temp, tab_rain, tab_cloud, tab_detailed_temp, tab_table, tab_models = st.tabs([
-    "\U0001f321\ufe0f Temperature Consensus",
-    "\U0001f327\ufe0f Rain / Precipitation",
-    "\u2601\ufe0f Cloudiness & Sky Cover",
-    "\u2600\ufe0f vs \U0001f319 Temp Extrema",
-    "\U0001f4cb Comprehensive Table & CSV",
-    "\u2139\ufe0f Weather Models Info",
-])
+tab_temp, tab_rain, tab_cloud, tab_detailed_temp, tab_table, tab_models = st.tabs(
+    [
+        "\U0001f321\ufe0f Temperature Consensus",
+        "\U0001f327\ufe0f Rain / Precipitation",
+        "\u2601\ufe0f Cloudiness & Sky Cover",
+        "\u2600\ufe0f vs \U0001f319 Temp Extrema",
+        "\U0001f4cb Comprehensive Table & CSV",
+        "\u2139\ufe0f Weather Models Info",
+    ]
+)
 
 with tab_temp:
     st.plotly_chart(
-        plot_master_consensus(df_max, df_min, df_summary, unit_selection, city_clean_name),
+        plot_master_consensus(
+            df_max, df_min, df_summary, unit_selection, city_clean_name
+        ),
         use_container_width=True,
     )
-    st.caption("\U0001f4a1 **Tip:** Click on any legend item to toggle that model on or off. The light blue shaded corridor indicates the ensemble uncertainty envelope.")
+    st.caption(
+        "\U0001f4a1 **Tip:** Click on any legend item to toggle that model on or off. The light blue shaded corridor indicates the ensemble uncertainty envelope."
+    )
 
 with tab_rain:
     st.plotly_chart(
@@ -327,10 +386,14 @@ with tab_rain:
     col_r1, col_r2 = st.columns(2)
     with col_r1:
         rainy_days = (df_summary["Daily Avg Rain (mm)"] >= 1.0).sum()
-        st.info(f"\U0001f327\ufe0f **Rain Outlook:** {rainy_days} out of {len(df_summary)} days are projected to have noticeable rain (\u2265 1.0 mm). Total expected accumulation: **{total_rain:.1f} mm**.")
+        st.info(
+            f"\U0001f327\ufe0f **Rain Outlook:** {rainy_days} out of {len(df_summary)} days are projected to have noticeable rain (\u2265 1.0 mm). Total expected accumulation: **{total_rain:.1f} mm**."
+        )
     with col_r2:
         max_single_model_rain = df_summary["Max Model Rain (mm)"].max()
-        st.info(f"\u26a0\ufe0f **Peak Intensity:** The highest single-model rainfall forecast is **{max_single_model_rain:.1f} mm** on {df_summary['Max Model Rain (mm)'].idxmax()}.")
+        st.info(
+            f"\u26a0\ufe0f **Peak Intensity:** The highest single-model rainfall forecast is **{max_single_model_rain:.1f} mm** on {df_summary['Max Model Rain (mm)'].idxmax()}."
+        )
 
 with tab_cloud:
     st.plotly_chart(
@@ -374,7 +437,9 @@ with tab_table:
     st.markdown("### Unified Multi-Variable Forecast Table")
 
     export_df = pd.DataFrame(index=df_summary.index)
-    export_df[f"Ensemble Mean Temp ({unit_selection})"] = df_summary["Daily Mean Temp"].round(1)
+    export_df[f"Ensemble Mean Temp ({unit_selection})"] = df_summary[
+        "Daily Mean Temp"
+    ].round(1)
     export_df[f"Avg Max Temp ({unit_selection})"] = df_summary["Daily Avg Max"].round(1)
     export_df[f"Avg Min Temp ({unit_selection})"] = df_summary["Daily Avg Min"].round(1)
     export_df["Avg Rain (mm)"] = df_summary["Daily Avg Rain (mm)"].round(1)
@@ -395,10 +460,11 @@ with tab_table:
     )
 
     csv_data = export_df.to_csv().encode("utf-8")
+    timestamp_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
     st.download_button(
         label="\U0001f4e5 Download Full Weather Forecast (CSV)",
         data=csv_data,
-        file_name=f"weather_forecast_{city_clean_name}_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
+        file_name=f"weather_forecast_{city_clean_name}_{timestamp_str}.csv",
         mime="text/csv",
     )
 
