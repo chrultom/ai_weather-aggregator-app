@@ -80,7 +80,7 @@ with st.sidebar:
     city_input = st.text_input(
         "City Name:",
         value="Szczecin",
-        help="Type any city worldwide (e.g. Szczecin, Oslo, Berlin, Warsaw, New York).",
+        help="Type any city worldwide (e.g. Szczecin, Berlin, Warsaw, Karpacz, Kusadasi, Fuerteventura).",
     )
 
     quick_options = [
@@ -88,10 +88,9 @@ with st.sidebar:
         "Szczecin",
         "Warsaw",
         "Berlin",
-        "Oslo",
-        "London",
-        "New York",
-        "Tokyo",
+        "Karpacz",
+        "Fuerteventura",
+        "Kusadasi",
     ]
     chosen_quick = st.selectbox("Quick City Presets:", quick_options)
     if chosen_quick != "(Custom)":
